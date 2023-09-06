@@ -1,0 +1,1485 @@
+---
+title: "MA5957 Project"
+authors: Corinne Batho-Newton, Djenebou Kaba, Jodie Harbour
+output: html_document
+---
+# Set Up
+```{r Packages, message=FALSE}
+library(tidyverse)
+library(dplyr)
+library(cowplot)
+library(googleway)
+library(ggplot2)
+library(ggrepel)
+library(ggspatial) 
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(dplyr)
+library(gridExtra)
+library(tibble)
+library(data.table)
+library(lubridate)
+library(plyr)
+library(DataExplorer)
+library(naniar)
+library(VIM)
+library(FactoMineR)
+library(missMDA)
+library(mice)
+library(corrplot)
+library(caTools)
+library(faraway)
+library(GGally)
+library(AER)
+library(MASS)
+library(corrplot)
+library(hnp)
+library(cluster)
+library(factoextra)
+library(stats)
+```
+
+```{r Set working directory}
+#setwd("C:/Users/jodie/Dropbox/Data Analytics/MA5957 - Diss/R Studio work")
+```
+
+```{r Import data}
+gender <- read.csv("Gender.csv")
+rank <- read.csv("Rank.csv")
+characteristics <- read.csv("characteristics.csv")
+```
+
+```{r Housekeeping (variable names and assign factors)}
+summary(gender); summary(rank)
+
+# Gender dataset
+colnames(gender) = c("contribution_id", "ISOCode3", "M49Code", "Country", "Mission", "Personnel_type", "Female", "Male", "Date_reported")
+gender$contribution_id <- as.factor(gender$contribution_id)
+gender$M49Code <- as.factor(gender$M49Code)
+summary(gender)
+
+# Rank dataset
+colnames(rank) = c("ISOCode3", "M49Code", "Country", "Rank", "Female", "Male", "Total", "Date_reported") 
+rank$M49Code <- as.factor(rank$M49Code)
+rank$Rank <- as.factor(rank$Rank)
+summary(rank)
+
+gender <- as_tibble(gender)
+rank <- as_tibble(rank)
+```
+
+```{r Housekeeping characteristics dataset}
+# Overview of data
+summary(characteristics)
+
+# Viewing how many NA'S there are in the entire dataset & removing them
+sum(is.na(characteristics))
+characteristics <- na.omit(characteristics) 
+
+# Changing the column names so easier to reference
+colnames(characteristics) = c("Year", "Time_Code", "Country", "Country_Code", "Refugee_Population", "Urban_Population", "Armed_Forces", "Labor_Force_Female", "Life_Expectancy_Female","GDP","Military_Expenditure","Death_Rate","Birth_Rate","Education")
+
+# Changing the variables into correct format 
+characteristics$Time<-as.factor(characteristics$Time)
+characteristics$Time_Code<-as.factor(characteristics$Time_Code)
+characteristics$Country<-as.factor(characteristics$Country)
+characteristics$Country_Code<-as.factor(characteristics$Country_Code)
+characteristics$Refugee_Population<-as.integer(characteristics$Refugee_Population)
+characteristics$Armed_Forces<-as.integer(characteristics$Armed_Forces)
+characteristics$Labor_Force_Female<-as.double(characteristics$Labor_Force_Female)
+characteristics$Life_Expectancy_Female<-as.double(characteristics$Life_Expectancy_Female)
+characteristics$Military_Expenditure<-as.double(characteristics$Military_Expenditure)
+characteristics$Education<-as.integer(characteristics$Education)
+
+# Remove time & country code column as it's not needed
+characteristics <- characteristics[,c(1,3,5:14)]
+
+# Viewing the cleaned data 
+glimpse(characteristics)
+```
+
+```{r Format Year and Total}
+gender$Date_reported <- as.Date(gender$Date_reported, "%d-%b-%y")
+
+# Add Year column
+gender <- gender %>%
+  mutate_at(vars(Date_reported), funs(year, month, day))
+
+gender$Total <- gender$Female + gender$Male
+```
+
+# Dataset Exploration - Gender Dataset
+Exploring each variable and checking for NAs
+```{r EDA (Gender - categorical)}
+# ISCOCode3 variable:
+unique(gender$ISOCode3) # "#N/A" value included
+filter(gender, ISOCode3 == "#N/A") # present in 4 instances (4 missing ISO codes), also missing M49 code and country name
+
+# M49Code variables:
+unique(gender$M49Code)  # NA values present
+filter(gender, is.na(M49Code)) # 5 NA values; 4 have no ISO codes, 1 has ISO code BDS; also missing country name
+
+# Country variable:
+unique(gender$Country)  # "" value - missing country names
+filter(gender, Country == "")  # 5 missing country names (as above)
+
+# Check unique combinations between ISO, M49 codes and country names
+dplyr::select(gender, ISOCode3, M49Code, Country) %>%
+  distinct() %>%
+  group_by(Country) %>%
+  filter(n() > 1) # only duplicates are where values are missing - therefore can remove 2 of these variables
+
+# Mission variable:
+unique(gender$Mission) # white space in some names - needs to be removed
+gender$Mission <- trimws(gender$Mission)
+unique(gender$Mission)
+
+# Personnel_type variable:
+unique(gender$Personnel_type)
+
+# Date_reported variable:
+unique(gender$Date_reported)
+# extra Jul 2003 data
+filter(gender, Date_reported == "2003-07-30" | Date_reported == "2003-07-31") %>%
+  arrange(Date_reported)
+```
+
+```{r EDA (Gender - continuous)}
+summary(gender$Female)
+summary(gender$Male)
+
+ggplot(gender, aes(Female)) +
+  geom_boxplot()
+ggplot(gender, aes(Female)) +
+  geom_histogram(binwidth = 50)
+
+ggplot(gender, aes(Male)) +
+  geom_boxplot()
+ggplot(gender, aes(Male)) +
+  geom_histogram(binwidth = 300)          
+
+# Missions with most female and male personnel
+arrange(gender, desc(Female))
+arrange(gender, desc(Male))
+```
+
+# Dataset Exploration - Rank Dataset
+Exploring each variable and checking for NAs
+```{r EDA (Rank - categorical)}
+# ISOCode3 variable:
+unique(rank$ISOCode3)
+
+# M49Code variable:
+unique(rank$M49Code)
+
+# Country variable:
+unique(rank$Country)
+
+# Check unique combinations between ISO, M49 codes and country names
+dplyr::select(rank, ISOCode3, M49Code, Country) %>%
+  distinct() %>%
+  group_by(Country) %>%
+  filter(n() > 1) # no results, so can remove 2 of the variables as they are redundant
+
+# Rank variable:
+unique(rank$Rank) # some variables are tied
+summary(rank$Rank) # explore ranks with most ties (most results)
+
+# Highest and lowest contributors (according to Dec 2020 rank)
+arrange(rank, desc(Rank))
+arrange(rank, Rank)
+
+# Date_reported variable:
+unique(rank$Date_reported)
+```
+
+```{r EDA (Rank - continuous)}
+summary(rank$Female)
+summary(rank$Male)
+summary(rank$Total)
+
+# Countries contributing most female and male personnel
+arrange(rank, desc(Female))
+arrange(rank, desc(Male))
+arrange(rank, desc(Total))
+```
+
+## Further EDA
+Once the data sets had been edited, further analysis of the personnel contributions was carried out.
+The total male and female personnel contributions in 2010 were compared with 2020
+```{r Female contributions by date} 
+FemaleByDate <- aggregate(gender["Female"], by=gender["Date_reported"], sum)
+FemaleByDate$Date_reported <- as.Date(FemaleByDate$Date_reported, "%d-%b-%y")
+
+graphGenderSums <- ggplot(data = FemaleByDate) +
+  geom_point(mapping = aes(x = Date_reported, y = Female)) +
+  scale_x_continuous(breaks = )
+graphGenderSums # Date variable doesn't appear right?
+```
+
+Subsets of personnel types:
+```{r Personnel subsets}
+# Graph showing all the personnel_type in the dataset
+graph_personnel_type<-
+  ggplot(data=gender)+geom_bar(mapping=aes(x=Personnel_type)) + coord_flip()
+graph_personnel_type
+
+genderTroops<-gender[gender$Personnel_type == "Troops",] # Troops personnel type
+genderSF<-gender[gender$Personnel_type == "Staff Officer",] # Staff Officer personnel type
+genderIP<-gender[gender$Personnel_type == "Individual Police",] # Individual Police personnel type
+genderFPU<-gender[gender$Personnel_type == "Formed Police Units",] # Formed Police Units personnel type
+genderEOM<-gender[gender$Personnel_type == "Experts on Mission",] # Experts on mission personnel type
+```
+
+Comparing 2010 vs 2020:
+```{r Personnel comparison 2010 vs 2020}
+# Focusing on analyzing personnel contributions over a decade to see what the similarities and differences are therefore, selecting 2010 and 2020 years only. 
+
+# Selecting "Jan 31 2010"
+gender2010 <- gender %>%
+  filter(Date_reported =="2010-01-31")
+#view(gender2010)
+
+# Selecting "Jan 31 2020"
+gender2020<-gender %>%
+  filter(Date_reported =="2020-01-31")
+#view(gender2020)
+
+# Plotting contributions by mission and personnel type 2010
+mission2010<-
+  ggplot(gender2010, aes(x= Mission, fill=Personnel_type,beside=TRUE))+
+  geom_bar()+
+  ggtitle ("Contributions by mission and personnel type
+(as of 31st January 2010)")+
+  coord_flip()
+mission2010
+
+# Plotting contributions by mission and personnel type 2020
+mission2020<-
+  ggplot(gender2020, aes(x= Mission, fill=Personnel_type))+
+  geom_bar()+
+  ggtitle ("Contributions by mission and personnel type
+(as of 31st January 2020)")+
+  coord_flip()
+mission2020
+
+# Personnel subsets for 2010
+genderTroops2010<-gender2010[gender2010$Personnel_type == "Troops",] # Troops personnel type
+genderSF2010<-gender2010[gender2010$Personnel_type == "Staff Officer",] # Staff Officer personnel type
+genderIP2010<-gender2010[gender2010$Personnel_type == "Individual Police",] # Individual Police personnel type
+genderFPU2010<-gender2010[gender2010$Personnel_type == "Formed Police Units",] # Formed Police Units personnel type
+genderEOM2010<-gender2010[gender2010$Personnel_type == "Experts on Mission",] # Experts on mission personnel type
+
+# Summary of personnel subsets for 2010
+summary(genderTroops2010)
+summary(genderSF2010)
+summary(genderIP2010)
+summary(genderFPU2010)
+summary(genderEOM2010)
+
+# Personnel subsets for 2020
+genderTroops2020<-gender2020[gender2020$Personnel_type == "Troops",] # Troops personnel type
+genderSF2020<-gender2020[gender2020$Personnel_type == "Staff Officer",] # Staff Officer personnel type
+genderIP2020<-gender2020[gender2020$Personnel_type == "Individual Police",] # Individual Police personnel type
+genderFPU2020<-gender2020[gender2020$Personnel_type == "Formed Police Units",] # Formed Police Units personnel type
+genderEOM2020<-gender2020[gender2020$Personnel_type == "Experts on Mission",] # Experts on mission personnel type
+
+# Summary of personnel subsets for 2020
+summary(genderTroops2020)
+summary(genderSF2020)
+summary(genderIP2020)
+summary(genderFPU2020)
+summary(genderEOM2020)
+
+# Making a separate data frame for 2010 and 2020 total mission contribution of each personnel
+df2010 <- data.frame(Personnel=c("Troops","Staff Officer","Individual Police","Formed Police Units","Experts on Mission"),
+                Contribution_total=c(229,0,287,30,351))
+
+# Calculating the mean personnel contribution towards missions 2010
+mean(df2010$Contribution_total)
+
+df2020 <- data.frame(Personnel=c("Troops","Staff Officer","Individual Police","Formed Police Units","Experts on Mission"),
+               Contribution_total=c(139,318,209,31,328))
+
+mean(df2020$Contribution_total)
+
+# Barplots for both data frame
+graph1<-ggplot(data=df2010, aes(x=Personnel, y=Contribution_total)) +
+  geom_bar(stat="identity", fill="blue")+
+geom_text(aes(label=Contribution_total),vjust = -0.02,colour = "black",size = 3)+
+  ggtitle ("Total Mission Contributions by Personnel Types 2010")
+graph1
+
+graph2<-ggplot(data=df2020, aes(x=Personnel, y=Contribution_total)) +
+  geom_bar(stat="identity", fill="orange")+
+geom_text(aes(label=Contribution_total),vjust = -0.02,colour = "black",size = 3)+
+  ggtitle ("Total Mission Contributions by Personnel Types 2020")
+graph2
+```
+
+# Editing Dataset (Removing/Separating Variables)
+After exploration of the data sets, unnecessary variables were removed. These were additional country codes which were not needed as the country name was enough.
+```{r Removing variables}
+# remove unnecessary variables:
+gender <- gender %>% dplyr::select(-contribution_id, -ISOCode3, -M49Code)
+rank <- rank %>% dplyr::select(-ISOCode3, -M49Code)
+```
+
+# Personnel Per Month Calculations (new datasets)
+Calculating personnel per month for each year
+Has to be broken down Year - Country - Type - Gender/Total.
+This chunk find the average monthly contribution that a country made to a mission in a given year, and the finds the total contributions a country has made in a year by finding the sum of all average contributions to each mission. Giving us an average man power per month dataset for each country, for each year.
+```{r Manpower per month}
+years <- unique(gender$year)
+years.len <- length(years)
+countries <- unique(gender$Country)
+countries.len <- length(countries) 
+types <- unique(gender$Personnel_type)
+types.len <- length(types)
+missions <- unique(gender$Mission)
+missions.len <- length(missions)
+
+countryByYear <- data.frame(Year = double(),
+                           Country = character(),
+                           Female = integer(),
+                           Male = integer(),
+                           Total = integer())
+
+monthSum <- function(query, monthTotals){
+  for (m in 1:12){
+    month <- filter(query, month == m)
+    monthTotals$Total[m] <- sum(month$Total)
+    monthTotals$Female[m] <- sum(month$Female)
+    monthTotals$Male[m] <- sum(month$Male)
+  }
+  return(monthTotals)
+}
+
+type <- types[1]
+
+for (a in 1:years.len){
+  y <- years[a]
+  for (b in 1:countries.len){
+    country <- countries[b]
+    monthTotals <- data.frame(index = 1:12, columns=c("Female", "Male", "Total"))
+    monthTotals$Female <- 1:12
+    monthTotals$Male <- 1:12
+    monthTotals$Total <- 1:12
+    
+    query1 <- filter(gender, year == y, Country == country)
+    monthTotals <- monthSum(query1,monthTotals)
+    f <- round(mean(monthTotals$Female))
+    m <- round(mean(monthTotals$Male))
+    t <- round(mean(monthTotals$Total))
+    countryByYear <- rbind(countryByYear, c(y, country, f, m, t))
+  }
+}
+
+colnames(countryByYear) <- c("Year", "Country", "Female", "Male", "Total")
+countryByYear$Year <- as.integer(countryByYear$Year)
+countryByYear$Female <- as.integer(countryByYear$Female)
+countryByYear$Male <- as.integer(countryByYear$Male)
+countryByYear$Total <- as.integer(countryByYear$Total)
+countryByYear <- na.omit(countryByYear)
+
+View(countryByYear)
+```
+
+Looking at countryByYear dataset:
+```{r EDA of yearTotals (man hours)}
+yearTotals <- ddply(countryByYear, "Year", numcolwise(sum))
+yearTotals <- yearTotals[yearTotals$Year != "2021",]
+yearTotals$Year <- as.Date(as.character(yearTotals$Year), "%Y")
+
+myColors <- c("Male"="blue", "Total"="black", "Female"="Red")
+
+# Total personnel by year
+ggplot(yearTotals, aes(x = Year)) + 
+  geom_line(aes(y = Total, color = "Total")) +
+  geom_line(aes(y = Male, color = "Male"))+
+  geom_line(aes(y = Female, color = "Female"))+
+  ggtitle("Total Yearly Contribution of all Countries (2010 - 2020)")+
+  labs(x = "Year", y= "Number of Personelle on all missions")+
+  scale_color_manual(name = "Color Key",
+                     values = myColors,
+                     labels = c("Total","Male","Female"))
+# Total female
+ggplot(yearTotals, aes(x = Year, y = Female)) + 
+  geom_line(color = "red")+
+  ggtitle("Total yearly Female Contributions from all countries")+
+  labs(x = "Year", y = "Number of Personelle on all missions")
+```
+
+Calculating personnel per month per mission for each year - this chunk has a very long run time so a saved version of the output is opened in the next chunk
+```{r Mission manpower per month}
+# years <- unique(gender$year)
+# years.len <- length(years)
+# countries <- unique(gender$Country)
+# countries.len <- length(countries) # 144
+# types <- unique(gender$Personnel_type)
+# types.len <- length(types)
+# missions <- unique(gender$Mission)
+# missions.len <- length(missions)
+# 
+# countryMissionByYear <- data.frame(Year = double(),
+#                            Country = character(),
+#                            Mission = character(),
+#                            Female = integer(),
+#                            Male = integer(),
+#                            Total = integer())
+# 
+# monthSum <- function(query, monthTotals){
+#     for (m in 1:12){
+#       month <- filter(query, month == m)
+#       monthTotals$Total[m] <- sum(month$Total)
+#       monthTotals$Female[m] <- sum(month$Female)
+#       monthTotals$Male[m] <- sum(month$Male)
+#   }
+#   return(monthTotals)
+# }
+# 
+# type <- types[1]
+# 
+# for (a in 1:years.len){
+#   y <- years[a]
+#   for (b in 1:countries.len){
+#     country <- countries[b]
+#     for (c in 1:missions.len){
+#       mission <- missions[c]
+#         monthTotals <- data.frame(index = 1:12, columns=c("Female", "Male", "Total"))
+#         monthTotals$Female <- 1:12
+#         monthTotals$Male <- 1:12
+#         monthTotals$Total <- 1:12
+#     
+#       query1 <- filter(gender, year == y, Country == country, Mission == mission)
+#       monthTotals <- monthSum(query1,monthTotals)
+#       f <- round(mean(monthTotals$Female))
+#       m <- round(mean(monthTotals$Male))
+#       t <- round(mean(monthTotals$Total))
+#       countryMissionByYear <- rbind(countryMissionByYear, c(y, country, mission, f, m, t))
+#     }
+#   }
+# }
+# 
+# colnames(countryMissionByYear) <- c("Year", "Country", "Mission", "Female", "Male", "Total")
+# countryMissionByYear$Year <- as.integer(countryMissionByYear$Year)
+# countryMissionByYear$Female <- as.integer(countryMissionByYear$Female)
+# countryMissionByYear$Male <- as.integer(countryMissionByYear$Male)
+# countryMissionByYear$Total <- as.integer(countryMissionByYear$Total)
+# countryMissionByYear <- na.omit(countryMissionByYear)
+# 
+# #View(countryMissionByYear)
+# 
+# write.csv(countryMissionByYear, file = "CountryByYear.csv")
+```
+
+```{r Loading countryMissionByYear csv}
+CountryMissionByYear <- read.csv("CountryByYear.csv")
+CountryMissionByYear <- CountryMissionByYear[, -1]
+```
+
+# EDA on new datasets
+Once the data sets had been edited, further analysis of the personnel contributions was carried out.
+The total male and female personnel contributions in 2010 were compared with 2020.
+```{r Gender - personnel contrubutions by year}
+countryByYear %>% filter(Year == "2020" | Year == "2010") %>%
+  group_by(Year) %>%
+  summarise_at(vars(-Country), list(sum)) %>%
+  mutate(Percentage_female = Female/Total * 100, Percentage_male = Male/Total * 100)
+```
+
+# Exploring Location Factors
+Mapping contribution by location:
+```{r Map plots setup}
+mission_summary <- CountryMissionByYear %>%
+  group_by(Mission, Country) %>%
+  summarise_at(vars(Female, Male, Total), list(sum))
+largest_missions <- mission_summary %>%
+  group_by(Mission) %>%
+  summarise_at(vars(Female, Male, Total, -Country), funs(sum)) %>%
+  arrange(desc(Total))
+largest_missions
+unique(mission_summary$Mission) # 46 unique missions
+
+worlddata <- map_data("world")
+```
+
+```{r Top 5 current missions}
+# MONUSCO
+MONUSCO <- mission_summary %>% filter(Mission == "MONUSCO") %>% arrange(desc(Total))
+MONUSCO
+
+# UNIFIL
+UNIFIL <- mission_summary %>% filter(Mission == "UNIFIL") %>% arrange(desc(Total))
+UNIFIL
+
+# UNMISS
+UNMISS <- mission_summary %>% filter(Mission == "UNMISS") %>% arrange(desc(Total))
+UNMISS
+
+# MINUSMA
+MINUSMA <- mission_summary %>% filter(Mission == "MINUSMA") %>% arrange(desc(Total))
+MINUSMA
+
+# MINUSCA
+MINUSCA <- mission_summary %>% filter(Mission == "MINUSCA") %>% arrange(desc(Total))
+MINUSCA
+```
+
+```{r Map 1: MONUSCO - 1st}
+# country contribution to MONUSCO mission (DR of Congo)
+MONUSCO <- MONUSCO %>% filter(Total >= "1") 
+
+DR_congo <- worlddata %>% filter(region == "Democratic Republic of the Congo") %>% group_by(region) %>% summarise_at(vars(long, lat, -order, -group), funs(mean))
+
+MONUSCO_contributions <- ggplot(worlddata) +
+  geom_map(map = worlddata, 
+           aes(x = long, y = lat, group = group, map_id = region),
+           fill = "white", colour = "#7f7f7f", size = 0.5) +
+  geom_map(data = MONUSCO, map = worlddata, 
+           aes(fill = Total, map_id = Country),
+           colour = "#7f7f7f", size = 0.5) +
+  geom_map(data = DR_congo, map = worlddata, 
+           aes(map_id = region), 
+           fill = "yellow", colour = "#7f7f7f") +
+  geom_label_repel(data = DR_congo, aes(long, lat, label = region), size = 2, 
+                   nudge_x = -30, nudge_y = -50) +
+  coord_map("rectangular", lat0 = 0, xlim = c(-180, 180), ylim = c(-80, 90)) +
+  scale_fill_continuous(low = "lightblue1", high = "darkblue", guide = "colourbar") +
+  labs(x = "Longitude (degrees)", y = "Latitude (degrees)", 
+       title = "UN peacekeeping contributions by country", 
+       subtitle = "For MONUSCO mission in Democratic Republic of the Congo", fill = "Personnel\ncontribution")
+MONUSCO_contributions
+```
+
+```{r Map 2: UNIFIL - 2nd}
+# country contribution to UNIFIL mission (Lebanon)
+UNIFIL <- UNIFIL %>% filter(Total >= "1")
+
+Lebanon <- worlddata %>% filter(region == "Lebanon") %>% group_by(region) %>% summarise_at(vars(long, lat, -order, -group), funs(mean))
+
+UNIFIL_contributions <- ggplot(worlddata) +
+  geom_map(map = worlddata, 
+           aes(x = long, y = lat, group = group, map_id = region),
+           fill = "white", colour = "#7f7f7f", size = 0.5) +
+  geom_map(data = UNIFIL, map = worlddata, 
+           aes(fill = Total, map_id = Country),
+           colour = "#7f7f7f", size = 0.5) +
+  geom_map(data = Lebanon, map = worlddata, 
+           aes(map_id = region), 
+           fill = "yellow", colour = "#7f7f7f") +
+  geom_label_repel(data = Lebanon, aes(long, lat, label = region), size = 2, 
+                   nudge_x = 40, nudge_y = -40) +
+  coord_map("rectangular", lat0 = 0, xlim = c(-180, 180), ylim = c(-80, 90)) +
+  scale_fill_continuous(low = "lightblue1", high = "darkblue", guide = "colourbar") +
+  labs(x = "Longitude (degrees)", y = "Latitude (degrees)", 
+       title = "UN peacekeeping contributions by country", 
+       subtitle = "For UNIFIL mission in Lebanon", fill = "Personnel\ncontribution") 
+
+UNIFIL_contributions
+UNIFIL_contributions +
+  coord_cartesian(xlim = c(-30, 100), ylim = c(-15, 65))
+```
+
+# Datasets joined for statistical analysis
+Joining characteristics and countries by year data sets together, imputing missing values for the columns where appropriate.
+```{r byYearXcharacteristics housekeeping}
+byYearxChar <- merge(countryByYear, characteristics, by = c("Year","Country"))
+byYearxChar <- byYearxChar %>% 
+  replace_with_na_all(condition = ~.x =="..")
+summary(byYearxChar)
+gg_miss_var(byYearxChar)
+gg_miss_var(byYearxChar[byYearxChar$Year == 2020,])
+gg_miss_var(byYearxChar[byYearxChar$Year == 2019,])
+gg_miss_var(byYearxChar[byYearxChar$Year == 2018,])
+miss <- summary(aggr(byYearxChar, sortVar=TRUE, cex.axis=.4))$combinations
+
+# Removing 2020
+byYearxChar <- byYearxChar[!byYearxChar$Year == 2020,]
+
+# Imputing missing data
+temp <- mice(byYearxChar, m=5, maxit=50, meth='cart', seed=500)
+summary(temp)
+xyplot(temp, Military_Expenditure ~ Total, pch=18, cex=1)
+byYearxChar <- complete(temp,1)
+gg_miss_var(byYearxChar)
+
+# Drop death rate and birth rate columns and add GDP for Cuba 2019
+drop <- c("Death_Rate", "Birth_Rate")
+byYearxChar <- byYearxChar[,!(names(byYearxChar) %in% drop)]
+byYearxChar[1150,11] <- "159400000000"
+
+# All NA's Removed
+sum(is.na(byYearxChar))
+
+byYearxChar.A <- byYearxChar
+
+byYearxChar$Year <- as.Date(ISOdate(byYearxChar$Year,12,31))
+byYearxChar$Urban_Population <- as.numeric(byYearxChar$Urban_Population)
+byYearxChar$GDP <- as.numeric(byYearxChar$GDP)
+head(byYearxChar)
+
+byYearxChar.A$GDP <- as.numeric(byYearxChar.A$GDP)
+byYearxChar.A$Urban_Population <- as.numeric(byYearxChar.A$Urban_Population)
+
+# Adding Percentage Female Column
+byYearxChar.B <- byYearxChar.A[byYearxChar.A$Total!=0,]
+#View(byYearxChar.B)
+byYearxChar.B$Percent_Female <- 0
+byYearxChar.B$Percent_Female <- format(byYearxChar.B$Female/byYearxChar.B$Total, digits = 3)
+byYearxChar.B$Percent_Female <- as.numeric(byYearxChar.B$Percent_Female)
+length(byYearxChar.B$Percent_Female == 1)
+
+byYearxChar.B.2010 <- byYearxChar.B[byYearxChar.B$Year == 2010,]
+byYearxChar.B.2019 <- byYearxChar.B[byYearxChar.B$Year == 2019,]
+```
+
+```{r EDA of byYearxChar }
+# Scatterplot matrices
+pairs(~Year+GDP+Total+Military_Expenditure, data = byYearxChar)
+pairs(~GDP+Total+Female+Labor_Force_Female, data = byYearxChar)
+pairs(~GDP+Total+Armed_Forces+Refugee_Population, data = byYearxChar)
+pairs(~GDP+Labor_Force_Female+Percent_Female+Education, data = byYearxChar.B)
+
+# GGplots comparing values
+ggplot(data = byYearxChar, aes(x = Military_Expenditure, y = Total))+
+  geom_point()
+
+data.low <- byYearxChar.B[byYearxChar.B$GDP <= 1000000000,]
+ggplot(data = data.low, aes(x = Military_Expenditure, y = Total))+
+  geom_point()
+
+pairs(~Year+GDP+Total+Military_Expenditure, data = data.low)
+pairs(~GDP+Total+Female+Labor_Force_Female, data = data.low)
+pairs(~GDP+Total+Armed_Forces+Refugee_Population, data = data.low)
+pairs(~GDP+Labor_Force_Female+Percent_Female+Education, data = data.low)
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=Education))+
+  geom_smooth() +
+  labs(title = "Education vs Percentage of Female Personelle", y = "Percentage of Female Contributions", x = "Average Years of Education in Country")
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=GDP))+
+  geom_smooth() +
+  labs(title = "GDP vs Percentage of Female Personelle", y = "Percentage of Female Contributions", x = "GDP (in US$)")
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=Labor_Force_Female))+
+  geom_smooth() +
+  labs(title = "Percentage of Labour Force that is Female vs Percentage of Female Personelle", y = "Percentage of Female Contributions", x = "Percentage of Workforce that is Female")
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=Total))+
+  geom_smooth() +
+  labs(title = "Total Number of Contributions vs Percentage of Contributions that are Female", y = "Percentage of Female Contributions", x = "Total Contributions")
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=Military_Expenditure))+
+  geom_smooth()+
+  labs(title = "Military Expenditure vs Percentage of Female Personelle", y = "Percentage of Female Contributions", x = "Military Expenditure ($)")
+ggplot(data = data.low,mapping = aes(y=Percent_Female,x=Military_Expenditure))+
+  geom_smooth()+
+  labs(title = "Military Expenditure vs Percentage of Female Personelle - Low GDP countries Only (< $1,000,000,000)", y = "Percentage of Female Contributions", x = "Military Expenditure ($)")
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=Refugee_Population))+
+  geom_smooth() +
+  labs(title = "Refugee Population vs Percentage of Female Personelle", y = "Percentage of Female Contributions", x = "Refugee Population")
+
+ggplot(data = byYearxChar.B,mapping = aes(y=Percent_Female,x=Life_Expectancy_Female))+
+  geom_smooth() +
+  labs(title = "Female Life Expectancy vs Percentage of Female Personelle", y = "Percentage of Female Contributions", x = "Average Female Life Expectancy (years)")
+
+mean(byYearxChar.B.2010$Percent_Female)
+mean(byYearxChar.B.2019$Percent_Female)
+
+yearsPF <- byYearxChar.B[,c(1,2,14)]
+yearsPF$Year <- as.Date(ISOdate(yearsPF$Year,12,31))
+ggplot(data = yearsPF,mapping = aes(y=Percent_Female,x=Year))+
+  geom_smooth() +
+  labs(title = "Percentage of Female Personelle from 2010 - 2020", x = "Years", y = "Percentage Female")
+```
+
+# Cluster analysis with Totals Column - Djenebou
+```{r Cluster analysis - K means}
+# Cluster 1 - Total, Armed forces, GDP and Military expenditure to help display if the amount of GDP a country has correlates with higher total personnel contribution for 2010. 
+
+# Selecting 2010
+dataset2010<-byYearxChar[byYearxChar$Year == "2010-12-31",]
+
+# Removing china and India from the dataset to allow further cluster analysis as their data was heavy high and skewed the analysis. 
+dataset2010<-dataset2010[!(dataset2010$Country =="China" |  dataset2010$Country == "India"),]
+
+# Making a separate dataset with selected columns and row labels as country
+characteristics2010<-as.data.frame(dataset2010[,c(5,8,11,12)])
+row.names(characteristics2010)<-dataset2010$Country
+
+# Making the data numeric 
+characteristics2010$Total = as.numeric(characteristics2010$Total)
+characteristics2010$Armed_Forces = as.numeric(characteristics2010$Armed_Forces)
+characteristics2010$GDP = as.numeric(characteristics2010$GDP)
+characteristics2010$Military_Expenditure = as.numeric(characteristics2010$Military_Expenditure)
+
+# EDA showing the correlations between the characteristics
+plot(characteristics2010)
+
+# Scaling the data
+characteristics2010.df<-scale(characteristics2010)
+summary(characteristics2010.df)
+
+# Calculating the distance between the points and then visualising them 
+distance <-get_dist(characteristics2010.df)
+fviz_dist(distance,gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+# Applying the k-means algorithm 
+k2 <- kmeans(characteristics2010.df, centers = 2, nstart = 25)
+k3 <- kmeans(characteristics2010.df, centers = 3, nstart = 25)
+k4 <- kmeans(characteristics2010.df, centers = 4, nstart = 25)
+k5 <- kmeans(characteristics2010.df, centers = 5, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = characteristics2010.df) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point", data = characteristics2010.df) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point", data = characteristics2010.df) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point", data = characteristics2010.df) + ggtitle("k = 5")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+# Finding optimal level of clusters
+set.seed(123)
+# Elbow method
+fviz_nbclust(characteristics2010.df,kmeans,method = "wss") 
+# Silhouette method
+fviz_nbclust(characteristics2010.df,kmeans,method = "silhouette") 
+# Gap statistic method 
+gap_stat <- clusGap(characteristics2010.df,FUN = kmeans,
+                    nstart = 25, K.max = 10,B = 50)
+fviz_gap_stat(gap_stat)
+
+# 4 is the best number of clusters to use
+#Displaying the clusters
+final1<-kmeans(characteristics2010.df,4,nstart=25)
+fviz_cluster(final1,data =characteristics2010.df,labelsize = 6 )
+c1<-fviz_cluster(final1,data =characteristics2010.df,labelsize = 6 ) + ggtitle("Cluster = 1 (2010)")# to use for comparing clusters using grid.arrange
+characteristics2010 %>% mutate(Cluster = final1$cluster) %>% group_by(Cluster) %>% 
+  summarise_all("mean")
+
+# Cluster two - Total, Armed forces, GDP and Military expenditure to help display if the amount of GDP a country has correlates with higher total personnel contribution for 2019.
+
+# Selecting 2019
+dataset2019<-byYearxChar[byYearxChar$Year == "2019-12-31",]
+
+# Removing china and India for 2019 aswell
+dataset2019<-dataset2019[!(dataset2019$Country =="China" |  dataset2019$Country == "India"),]
+
+# Making a separate dataset selected columns and row labels as country
+characteristics2019<-as.data.frame(dataset2019[,c(5,8,11,12)])
+row.names(characteristics2019)<-dataset2019$Country
+
+# Making the data numeric 
+characteristics2019$Total= as.numeric(characteristics2019$Total)
+characteristics2019$Armed_Forces= as.numeric(characteristics2019$Armed_Forces)
+characteristics2019$GDP= as.numeric(characteristics2019$GDP)
+characteristics2019$Military_Expenditure= as.numeric(characteristics2019$Military_Expenditure)
+
+# EDA showing the correlations between the characteristics
+plot(characteristics2019)
+
+# Scaling the data
+characteristics2019.df<-scale(characteristics2019)
+summary(characteristics2019.df)
+
+# Calculating the distance between the points and then visualising them 
+distance <-get_dist(characteristics2019.df)
+fviz_dist(distance,gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+# Applying the k-means algorithm 
+k2 <- kmeans(characteristics2019.df, centers = 2, nstart = 25)
+k3 <- kmeans(characteristics2019.df, centers = 3, nstart = 25)
+k4 <- kmeans(characteristics2019.df, centers = 4, nstart = 25)
+k5 <- kmeans(characteristics2019.df, centers = 5, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = characteristics2019.df) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point", data = characteristics2019.df) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point", data = characteristics2019.df) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point", data = characteristics2019.df) + ggtitle("k = 5")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+# Finding the optimal level of clusters
+set.seed(123)
+# Elbow method 
+fviz_nbclust(characteristics2019.df,kmeans,method = "wss")
+# Silhouette method
+fviz_nbclust(characteristics2019.df,kmeans,method = "silhouette")
+# Gap statistic method 2019
+gap_stat <- clusGap(characteristics2019.df,FUN = kmeans,
+                    nstart = 25, K.max = 10,B = 50)
+fviz_gap_stat(gap_stat)
+
+# 4 is the best number of clusters to use
+# Displaying the clusters
+final2<-kmeans(characteristics2019.df,4,nstart=25)
+fviz_cluster(final2,data =characteristics2019.df,labelsize = 6 )
+c2<-fviz_cluster(final2,data =characteristics2019.df,labelsize = 6) + ggtitle("Cluster = 2 (2019)") # to use for comparing clusters using grid.arrange
+characteristics2019 %>% mutate(Cluster = final2$cluster) %>% group_by(Cluster) %>% 
+  summarise_all("mean")
+
+# Overall: these clusters show that Higher GDP countries have higher military expenditure and higher armed forces however not higher total personnel. 
+
+# Comparing the 2010 and 2019 cluster plots
+grid.arrange(c1,c2)
+
+# Clustering three - Selecting Total, Refugee population, Urban population and Education to see if the population and characteristics of the population such as education has an effect on the total personnel contribution a country makes for 2010.
+
+# Making a separate dataset with selected columns and row labels as country
+characteristics2010.2<-as.data.frame(dataset2010[,c(5,6,7,13)])
+row.names(characteristics2010.2)<-dataset2010$Country
+
+# Making the data numeric 
+characteristics2010.2$Total = as.numeric(characteristics2010.2$Total)
+characteristics2010.2$Refugee_Population = as.numeric(characteristics2010.2$Refugee_Population)
+characteristics2010.2$Urban_Population = as.numeric(characteristics2010.2$Urban_Population)
+characteristics2010.2$Education = as.numeric(characteristics2010.2$Education)
+
+# EDA showing the correlations between the characteristics
+plot(characteristics2010.2)
+
+# Scaling the data
+characteristics2010.2.df<-scale(characteristics2010.2)
+summary(characteristics2010.2.df)
+
+# Calculating the distance between the points and then visualizing them 
+distance <-get_dist(characteristics2010.2.df)
+fviz_dist(distance,gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+# Applying the k-means algorithm 
+k2 <- kmeans(characteristics2010.2.df, centers = 2, nstart = 25)
+k3 <- kmeans(characteristics2010.2.df, centers = 3, nstart = 25)
+k4 <- kmeans(characteristics2010.2.df, centers = 4, nstart = 25)
+k5 <- kmeans(characteristics2010.2.df, centers = 5, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = characteristics2010.2.df) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point", data = characteristics2010.2.df) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point", data = characteristics2010.2.df) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point", data = characteristics2010.2.df) + ggtitle("k = 5")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+# Finding optimal level of clusters
+set.seed(123)
+# Elbow method
+fviz_nbclust(characteristics2010.2.df,kmeans,method = "wss") 
+# Silhouette method
+fviz_nbclust(characteristics2010.2.df,kmeans,method = "silhouette") 
+# Gap statistic method 
+gap_stat <- clusGap(characteristics2010.2.df,FUN = kmeans,
+                    nstart = 25, K.max = 10,B = 50)
+fviz_gap_stat(gap_stat)
+
+# 6 is the best number of clusters to use
+#Displaying the clusters
+final3<-kmeans(characteristics2010.2.df,6,nstart=25)
+fviz_cluster(final3,data =characteristics2010.2.df,labelsize = 6 )
+c3<-fviz_cluster(final3,data =characteristics2010.2.df,labelsize = 6 ) + ggtitle("Cluster = 3 (2010)") # to use for comparing clusters using grid.arrange
+characteristics2010.2 %>% mutate(Cluster = final3$cluster) %>% group_by(Cluster) %>% 
+  summarise_all("mean")
+
+# Clustering four - Selecting Total, Refugee population, Urban population and Education to see if the population and characteristics of the population such as education has an effect on the total personnel contribution a country makes for 2019.
+
+# Making a separate dataset with selected columns and row labels as country
+characteristics2019.2<-as.data.frame(dataset2019[,c(5,6,7,13)])
+row.names(characteristics2019.2)<- dataset2019$Country
+
+# Making the data numeric 
+characteristics2019.2$Total = as.numeric(characteristics2019.2$Total)
+characteristics2019.2$Refugee_Population = as.numeric(characteristics2019.2$Refugee_Population)
+characteristics2019.2$Urban_Population = as.numeric(characteristics2019.2$Urban_Population)
+characteristics2019.2$Education = as.numeric(characteristics2019.2$Education)
+
+# EDA showing the correlations between the characteristics
+plot(characteristics2019.2)
+
+# Scaling the data
+characteristics2019.2.df<-scale(characteristics2019.2)
+summary(characteristics2019.2.df)
+
+# Calculating the distance between the points and then visualising them 
+distance <-get_dist(characteristics2019.2.df)
+fviz_dist(distance,gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+
+# Applying the k-means algorithm 
+k2 <- kmeans(characteristics2019.2.df, centers = 2, nstart = 25)
+k3 <- kmeans(characteristics2019.2.df, centers = 3, nstart = 25)
+k4 <- kmeans(characteristics2019.2.df, centers = 4, nstart = 25)
+k5 <- kmeans(characteristics2019.2.df, centers = 5, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = characteristics2019.2.df) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point", data = characteristics2019.2.df) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point", data = characteristics2019.2.df) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point", data = characteristics2019.2.df) + ggtitle("k = 5")
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+# Finding optimal level of clusters
+set.seed(123)
+# Elbow method
+fviz_nbclust(characteristics2019.2.df,kmeans,method = "wss") 
+# Silhouette method
+fviz_nbclust(characteristics2019.2.df,kmeans,method = "silhouette") 
+# Gap statistic method 
+gap_stat <- clusGap(characteristics2019.2.df,FUN = kmeans,
+                    nstart = 25, K.max = 10,B = 50)
+fviz_gap_stat(gap_stat)
+
+#4 is the best number of clusters to use
+#Displaying the clusters
+final4<-kmeans(characteristics2019.2.df,4,nstart=25)
+fviz_cluster(final4,data =characteristics2019.2.df,labelsize = 6 )
+c4<-fviz_cluster(final4,data =characteristics2019.2.df,labelsize = 6 ) + ggtitle("Cluster = 4 (2019)")# to use for comparing clusters using grid.arrange
+characteristics2019.2 %>% mutate(Cluster = final4$cluster) %>% group_by(Cluster) %>% 
+  summarise_all("mean")
+
+#Overall: higher population and refugee population levels result in higher armed forces deployed and total personnel however, education does not impact this. 
+
+#Comparing the 2010 and 2019 cluster plots 
+grid.arrange(c3,c4)
+```
+
+
+# Clustering analysis with Percentage Female Column - Corinne
+```{r Cluster Group 1 - GDP & Total & Education}
+# Cluster Group 1 - Percent Female, GDP, Total, Education
+# 2010
+ClusterGroup1 <- as.data.frame(byYearxChar.B.2010[,c(14,11,5,13)])
+row.names(ClusterGroup1) <- byYearxChar.B.2010$Country
+plot(ClusterGroup1)
+ClusterGroup1.df <- scale(ClusterGroup1)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup1.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup1.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup1.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup1.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup1.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup1.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup1.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup1.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup1.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup1.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup1.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup1.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup1.df) + 
+  ggtitle("k = 7")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 4?
+fviz_nbclust(ClusterGroup1.df, kmeans, method = "wss")
+## Silhouette method - 4 or 6?
+fviz_nbclust(ClusterGroup1.df, kmeans, method = "silhouette")
+## gap statistic - 4 or 6
+gap_stat <- clusGap(ClusterGroup1.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 6 Clusters
+finalG1.A <- kmeans(ClusterGroup1.df, 6, nstart = 25)
+fviz_cluster(finalG1.A, data = ClusterGroup1.df, labelsize = 6)
+ClusterGroup1 %>% mutate(Cluster = as.numeric(finalG1.A$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+
+
+# 2019
+ClusterGroup1 <- as.data.frame(byYearxChar.B.2019[,c(14,11,5,13)])
+row.names(ClusterGroup1) <- byYearxChar.B.2019$Country
+plot(ClusterGroup1)
+ClusterGroup1.df <- scale(ClusterGroup1)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup1.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup1.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup1.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup1.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup1.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup1.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup1.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup1.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup1.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup1.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup1.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup1.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup1.df) + 
+  ggtitle("k = 7")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 5
+fviz_nbclust(ClusterGroup1.df, kmeans, method = "wss")
+## Silhouette method - 5
+fviz_nbclust(ClusterGroup1.df, kmeans, method = "silhouette")
+## gap statistic - 6?
+gap_stat <- clusGap(ClusterGroup1.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 5 Clusters
+finalG1.B <- kmeans(ClusterGroup1.df, 5, nstart = 25)
+fviz_cluster(finalG1.B, data = ClusterGroup1.df, labelsize = 6)
+ClusterGroup1 %>%
+  mutate(Cluster = as.numeric(finalG1.B$cluster)) %>%
+  group_by(Cluster) %>% summarise_all("mean") %>%
+  mutate(across(3, signif, 3)) %>%
+  mutate(across(c(2,4,5), round, 2))
+```
+
+```{r Cluster Group 2 - Refu pop & armed frces & milt expen}
+# Cluster Group 2 - Percent Female, Refugee Pop, Armed Forces, Military Expenditure 
+
+# - 2010
+ClusterGroup2 <- as.data.frame(byYearxChar.B.2010[,c(14,6,8,12)])
+row.names(ClusterGroup2) <- byYearxChar.B.2010$Country
+plot(ClusterGroup2)
+ClusterGroup2.df <- scale(ClusterGroup2)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup2.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup2.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup2.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup2.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup2.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup2.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup2.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup2.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup2.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup2.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup2.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup2.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup2.df) + 
+  ggtitle("k = 7")
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 4
+fviz_nbclust(ClusterGroup2.df, kmeans, method = "wss")
+## Silhouette method - 3
+fviz_nbclust(ClusterGroup2.df, kmeans, method = "silhouette")
+## gap statistic - 6
+gap_stat <- clusGap(ClusterGroup2.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 6 Clusters
+finalG2 <- kmeans(ClusterGroup2.df, 6, nstart = 25)
+fviz_cluster(finalG2, data = ClusterGroup2.df, labelsize = 6)
+ClusterGroup2 %>% mutate(Cluster = as.numeric(finalG2$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+
+# - 2019
+ClusterGroup2 <- as.data.frame(byYearxChar.B.2019[,c(14,6,8,12)])
+row.names(ClusterGroup2) <- byYearxChar.B.2019$Country
+plot(ClusterGroup2)
+ClusterGroup2.df <- scale(ClusterGroup2)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup2.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup2.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup2.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup2.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup2.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup2.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup2.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup2.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup2.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup2.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup2.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup2.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup2.df) + 
+  ggtitle("k = 7")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 4 or 8
+fviz_nbclust(ClusterGroup2.df, kmeans, method = "wss")
+## Silhouette method - 2 or 5
+fviz_nbclust(ClusterGroup2.df, kmeans, method = "silhouette")
+## gap statistic - 4
+gap_stat <- clusGap(ClusterGroup2.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 4 Clusters
+finalG2 <- kmeans(ClusterGroup2.df, 4, nstart = 25)
+fviz_cluster(finalG2, data = ClusterGroup2.df, labelsize = 6)
+ClusterGroup2 %>% mutate(Cluster = as.numeric(finalG2$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+
+```
+
+```{r Cluster Group 3 - urb pop & lab frce femm & life exp femm}
+# Cluster Group 3 - Percent Female, Urban Pop, Labor force female, life expectancy female
+
+# - 2010
+ClusterGroup3 <- as.data.frame(byYearxChar.B.2010[,c(14,7,9,10)])
+row.names(ClusterGroup3) <- byYearxChar.B.2010$Country
+plot(ClusterGroup3)
+ClusterGroup3.df <- scale(ClusterGroup3)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup3.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup3.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup3.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup3.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup3.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup3.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup3.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup3.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup3.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup3.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup3.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup3.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup3.df) + 
+  ggtitle("k = 7")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 4?
+fviz_nbclust(ClusterGroup3.df, kmeans, method = "wss")
+## Silhouette method - 5
+fviz_nbclust(ClusterGroup3.df, kmeans, method = "silhouette")
+## gap statistic - 5
+gap_stat <- clusGap(ClusterGroup3.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 5 Clusters
+finalG3 <- kmeans(ClusterGroup3.df, 5, nstart = 25)
+fviz_cluster(finalG3, data = ClusterGroup3.df, labelsize = 6)
+ClusterGroup3 %>% mutate(Cluster = as.numeric(finalG3$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+
+# - 2019
+ClusterGroup3 <- as.data.frame(byYearxChar.B.2019[,c(14,7,9,10)])
+row.names(ClusterGroup3) <- byYearxChar.B.2019$Country
+plot(ClusterGroup3)
+ClusterGroup3.df <- scale(ClusterGroup3)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup3.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup3.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup3.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup3.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup3.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup3.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup3.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup3.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup3.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup3.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup3.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup3.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup3.df) + 
+  ggtitle("k = 7")
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 6?
+fviz_nbclust(ClusterGroup3.df, kmeans, method = "wss")
+## Silhouette method - 5
+fviz_nbclust(ClusterGroup3.df, kmeans, method = "silhouette")
+## gap statistic - 3 or 5
+gap_stat <- clusGap(ClusterGroup3.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 5 Clusters
+finalG3 <- kmeans(ClusterGroup3.df, 5, nstart = 25)
+fviz_cluster(finalG3, data = ClusterGroup3.df, labelsize = 6)
+ClusterGroup3 %>% mutate(Cluster = as.numeric(finalG3$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+
+```
+
+```{r Group 4 - All}
+# Cluster Group 4 - All
+
+# - 2010
+ClusterGroup4 <- as.data.frame(byYearxChar.B.2010[,c(14,5:13)])
+row.names(ClusterGroup4) <- byYearxChar.B.2010$Country
+plot(ClusterGroup4)
+ClusterGroup4.df <- scale(ClusterGroup4)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup4.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup4.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup4.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup4.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup4.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup4.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup4.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup4.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup4.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup4.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup4.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup4.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup4.df) + 
+  ggtitle("k = 7")
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 4?
+fviz_nbclust(ClusterGroup4.df, kmeans, method = "wss")
+## Silhouette method - 6
+fviz_nbclust(ClusterGroup4.df, kmeans, method = "silhouette")
+## gap statistic - 4
+gap_stat <- clusGap(ClusterGroup4.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 4 Clusters
+finalG3 <- kmeans(ClusterGroup4.df, 4, nstart = 25)
+fviz_cluster(finalG3, data = ClusterGroup4.df, labelsize = 6)
+ClusterGroup4 %>% mutate(Cluster = as.numeric(finalG3$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+
+# - 2019
+ClusterGroup4 <- as.data.frame(byYearxChar.B.2019[,c(14,5:13)])
+row.names(ClusterGroup4) <- byYearxChar.B.2019$Country
+plot(ClusterGroup4)
+ClusterGroup4.df <- scale(ClusterGroup4)
+
+# Calculating Euclidean Distances
+distance <- get_dist(ClusterGroup4.df, method = "pearson")
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"), lab_size = 2)
+
+# K mean algorithm
+k2 <- kmeans(ClusterGroup4.df, centers = 2, nstart = 25)
+p1 <- fviz_cluster(k2, geom = "point", data = ClusterGroup4.df) +
+  ggtitle("k = 2")
+k3 <- kmeans(ClusterGroup4.df, centers = 3, nstart = 25)
+p2 <- fviz_cluster(k3, geom = "point", data = ClusterGroup4.df) +
+  ggtitle("k = 3")
+k4 <- kmeans(ClusterGroup4.df, centers = 4, nstart = 25)
+p3 <- fviz_cluster(k4, geom = "point", data = ClusterGroup4.df) +
+  ggtitle("k = 4")
+k5 <- kmeans(ClusterGroup4.df, centers = 5, nstart = 25)
+p4 <- fviz_cluster(k5, geom = "point", data = ClusterGroup4.df) + 
+  ggtitle("k = 5")
+k6 <- kmeans(ClusterGroup4.df, centers = 6, nstart = 25)
+p5 <- fviz_cluster(k6, geom = "point", data = ClusterGroup4.df) + 
+  ggtitle("k = 6")
+k7 <- kmeans(ClusterGroup4.df, centers = 7, nstart = 25)
+p6 <- fviz_cluster(k7, geom = "point", data = ClusterGroup4.df) + 
+  ggtitle("k = 7")
+
+grid.arrange(p1, p2, p3, p4, p5, p6, nrow = 3)
+
+set.seed(987)
+## Elbow method - 8?
+fviz_nbclust(ClusterGroup4.df, kmeans, method = "wss")
+## Silhouette method - 2
+fviz_nbclust(ClusterGroup4.df, kmeans, method = "silhouette")
+## gap statistic - 4
+gap_stat <- clusGap(ClusterGroup4.df,FUN = kmeans, nstart = 25, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+
+# With 4 Clusters
+finalG3 <- kmeans(ClusterGroup4.df, 4, nstart = 25)
+fviz_cluster(finalG3, data = ClusterGroup4.df, labelsize = 6)
+ClusterGroup4 %>% mutate(Cluster = as.numeric(finalG3$cluster)) %>% group_by(Cluster) %>% summarise_all("mean") %>% mutate(across(3, signif, 3)) %>% mutate(across(c(2,4,5), round, 2))
+```
+# Regression Model - Jodie
+# Regression model prep
+```{r Testing for poisson conditions} 
+# total histogram (poisson distribution)
+ggplot(byYearxChar, aes(Total)) +
+  geom_histogram(binwidth = 300) +
+  labs(title = "Histogram showing distribution of Total variable", y = "Frequency", subtitle = "where 'Total' is the total number of personnel contributed by a country per year")
+count(byYearxChar$Total)
+
+# mean and variance of Total should be equal
+mean(byYearxChar$Total)
+var(byYearxChar$Total) # not equal (overdispersion) - doesn't meet poisson condition
+# need to correct the standard errors
+```
+
+```{r Correlation matrix}
+cm_byYearxChar <- byYearxChar[, c(-3, -4)] %>%
+  select_if(is.numeric) %>%  drop_na() %>%
+  cor()
+
+corrplot(cm_byYearxChar, method = "color", type = "upper", addCoef.col = "black", number.cex = 0.7,
+         tl.col="black", tl.srt=45)
+```
+
+```{r Split dataset}
+set.seed(1234)
+split <- sample.split(byYearxChar, SplitRatio = 0.7)
+train_byYearxChar <- subset(byYearxChar, split == TRUE)
+train_byYearxChar <- train_byYearxChar[, c(-1:-4)] # removed year, country, male, female
+
+test_byYearxChar <- subset(byYearxChar, split == FALSE)
+test_byYearxChar <- test_byYearxChar[, c(-1:-4)] # removed year, country, male, female
+
+dim(train_byYearxChar); dim(test_byYearxChar)
+
+topredict_set <- test_byYearxChar[, c(-1)]
+```
+
+# Poisson regression
+```{r PM1}
+PoissonModel1 <- glm(Total ~ ., family = "poisson", data = train_byYearxChar)
+summary(PoissonModel1)
+
+# check dispersion
+deviance(PoissonModel1)/PoissonModel1$df.residual
+dispersiontest(PoissonModel1)
+```
+
+```{r PM2 (quasi)}
+# run quasi to correct the standard errors
+PoissonModel2 <- glm(Total ~ ., family = "quasipoisson", data = train_byYearxChar)
+summary(PoissonModel2) # remove urban population
+```
+
+```{r PM3}
+PoissonModel3 <- glm(Total ~ Refugee_Population + Armed_Forces + Labor_Force_Female + Life_Expectancy_Female + GDP + Military_Expenditure + Education, family = "poisson", data = train_byYearxChar)
+summary(PoissonModel3)
+
+# quasi check
+PoissonModel3_quasi <- glm(Total ~ Refugee_Population + Armed_Forces + Labor_Force_Female + Life_Expectancy_Female + GDP + Military_Expenditure + Education, family = "quasipoisson", data = train_byYearxChar)
+summary(PoissonModel3_quasi) # all significant
+
+vif(PoissonModel3) # remove military expenditure (too high)
+```
+
+```{r PM4}
+PoissonModel4 <- glm(Total ~ Refugee_Population + Armed_Forces + Labor_Force_Female + Life_Expectancy_Female + GDP + Education, family = "poisson", data = train_byYearxChar)
+summary(PoissonModel4)
+
+PoissonModel4_quasi <- glm(Total ~ Refugee_Population + Armed_Forces + Labor_Force_Female + Life_Expectancy_Female + GDP + Education, family = "quasipoisson", data = train_byYearxChar)
+summary(PoissonModel4_quasi) # GDP not significant
+```
+
+```{r PM5}
+PoissonModel5 <- glm(Total ~ Refugee_Population + Armed_Forces + Labor_Force_Female + Life_Expectancy_Female + Education, family = "poisson", data = train_byYearxChar)
+summary(PoissonModel5)
+
+PoissonModel5_quasi <- glm(Total ~ Refugee_Population + Armed_Forces + Labor_Force_Female + Life_Expectancy_Female + Education, family = "quasipoisson", data = train_byYearxChar)
+summary(PoissonModel5_quasi)
+
+vif(PoissonModel5) # looks fine but still very high AIC and overdispersion
+anova(PoissonModel5, test = "Chisq") 
+
+deviance(PoissonModel5_quasi)/PoissonModel5_quasi$df.residual
+dispersiontest(PoissonModel5)
+```
+
+# Negative Binomial Regression
+```{r NB1}
+NBModel1 <- glm.nb(Total ~ Refugee_Population + Urban_Population + Labor_Force_Female + Life_Expectancy_Female + Military_Expenditure + Education, data = train_byYearxChar) # already removed GDP and Armed_Forces as does not run with these two due to overfitting
+summary(NBModel1) # remove Labor Force
+```
+
+```{r NB2}
+NBModel2 <- glm.nb(Total ~ Refugee_Population + Urban_Population + Life_Expectancy_Female + Military_Expenditure + Education, data = train_byYearxChar)
+summary(NBModel2) # remove education
+```
+
+```{r NB3}
+NBModel3 <- glm.nb(Total ~ Refugee_Population + Urban_Population + Life_Expectancy_Female + Military_Expenditure, data = train_byYearxChar)
+summary(NBModel3) # remove military expenditure
+```
+
+```{r NB4}
+NBModel4 <- glm.nb(Total ~ Refugee_Population + Urban_Population + Life_Expectancy_Female, data = train_byYearxChar)
+summary(NBModel4) # all significant
+
+vif(NBModel4)
+anova(NBModel4, test = "Chisq")
+
+# dispersion
+deviance(NBModel4)/NBModel4$df.residual
+```
+
+# Comparing models
+```{r Anova, AIC}
+anova(PoissonModel5, NBModel4, test = "Chisq") # NBModel4 has much smaller residual deviance
+AIC(PoissonModel5, NBModel4) # NBModel4 has smaller AIC
+```
+
+```{r Half normal plots}
+par(mfrow = c(2, 2))
+hnp(PoissonModel5, xlab = "Half-normal scores", ylab = "Deviance residuals", main = "(a) Poisson model", pch = 4)
+hnp(PoissonModel5_quasi, xlab = "Half-normal scores", ylab = "Deviance residuals", main = "(b) Quasi-poisson model", pch = 4) # most deviance residuals lying within the simulated envelope (good model)
+hnp(NBModel4, xlab = "Half-normal scores", ylab = "Deviance residuals", main = "(c) Negative binomial model", pch = 4) # good model
+```
+
+# Predictions
+```{r Predict}
+topredict_set <- topredict_set %>%
+  mutate(Total = predict(NBModel4, topredict_set, type = "response"))
+
+prediction <- as.data.frame(topredict_set[, 9])
+real <- as.data.frame(test_byYearxChar[, 1])
+test_pred <- cbind(real, prediction)
+colnames(test_pred) <- c("real", "prediction")
+test_pred %>% arrange(prediction)
+test_pred %>% arrange(desc(prediction))
+byYearxChar %>% filter(Total == 2476) # China 2018
+byYearxChar %>% filter(Total == 2589) # China 2016
+
+plot(test_pred$real, test_pred$prediction)
+
+test_pred2 <- test_pred %>% filter(prediction <= 20000)
+ggplot(test_pred2, aes(real, prediction)) +
+  geom_point() +
+  geom_abline(formula = y ~ x, colour = "red") +
+  labs(title = "Predicted values for Total contribution vs actual Total contribution values", 
+       y = "Predicted", 
+       x = "Actual")
+
+test_pred2 %>% arrange(desc(prediction))
+```
+
+# End of Program
