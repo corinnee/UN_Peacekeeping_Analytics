@@ -25,7 +25,7 @@ Previous research indicates that some countries participate in peacekeeping oper
 **2. Cluster Analysis:** We group countries based on socio-economic and socio-demographic variables to identify common characteristics among countries with high and low personnel contributions.
 **3. Regression Analysis:** We build regression models to predict the number of personnel a country contributes to UN peacekeeping missions based on various factors.
 
-For the full dissertation and detailed analysis, please refer to the [./MA5957_Year_in_Data_Analytics_Project_Dissertation.pdf]
+For the full dissertation and detailed analysis, please refer to the [./Year_in_Data_Analytics_Project_Dissertation]
 
 ## Data Sources
 We used 2 primary datasets from the UN Peacekeeping open data portal, and a secondary dataset of socioeconomic characteristics of countries from the World Bank Data.
@@ -46,7 +46,7 @@ The repository contains several files relevant to the data analysis and presenta
 3. [Gender.csv](./Gender.csv)
    - Obtained from the United Nations Peacekeeping open data portal, this dataset titled 'Gender' provides a comprehensive overview of contributions to missions from 146 countries since July 2002. It includes data on personnel contributions by each country per month, specifying the type of personnel contributed, their gender, and the mission they were assigned to. This dataset allowed us to dive deep into gender and country-based contributions.
 
-4. [MA5957_Year_in_Data_Analytics_Project_Dissertation.pdf](./MA5957_Year_in_Data_Analytics_Project_Dissertation.pdf)
+4. [MA5957_Year_in_Data_Analytics_Project_Dissertation.pdf](./Year_in_Data_Analytics_Project_Dissertation)
    - This PDF document is our group's final write-up. It presents and discusses the results of our analysis and outlines the methodology we followed throughout the project.
      
 5. [Rank.csv](./Rank.csv)
