@@ -32,7 +32,7 @@ We used 2 primary datasets from the UN Peacekeeping open data portal, and a seco
 
 - Peacekeeping Tropp and Police Contributions Data: [Link to Dataset](https://peacekeeping.un.org/en/data-troop-and-police-contributions)
 - Women & Peacekeeping Data: [Link to Dataset](https://peacekeeping.un.org/en/women-peacekeeping)
-- Socio-Economic Characteristics Data: [Link to Dataset](https://peacekeeping.un.org/en/data-troop-and-police-contributions)
+- Socio-Economic Characteristics Data: [Link to Dataset](https://databank.worldbank.org/source/world-development-indicators)
 
 ## Repository Files
 The repository contains several files relevant to the data analysis and presentation of findings.
