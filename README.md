@@ -103,7 +103,7 @@ Here are the specific individual contributions of myself and each group member:
 - Lead the literature review workload to support further analysis, identifying key previous research.
 - Conducted stage 1 of the cluster analysis, comparing total personnel contribution with different characteristics and drawing effective conclusions from the results.
 
-**Jodie Harbour (jkh23)**:
+**J. Harbour**:
 - Renamed columns and conducted initial exploration of datasets.
 - Investigated location factors of missions and the geographical proximity of contributing countries.
 - Sourced socio-economic and socio-demographic data from the World Bank.
