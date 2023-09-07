@@ -6,13 +6,13 @@ Welcome to the UN Peacekeeping Contributions Data Analysis project. An end-of-ye
 ## Table of Contents
 - [Project Title and Description](#Data-Analytics-Project-Understanding-Gender-Disparities-in-Peacekeeping-Missions)
 - [Table of Contents](#table-of-contents)
-- [Project Overview]
-- [Repository Files]
-- [Usage Instructions]
-- [Data Analysis]
-- [Personal Contributions]
-- [Skills Demonstrated]
-- [License]
+- [Project Overview](#Project-Overview)
+- [Repository Files](#Repository-files)
+- [Usage Instructions](#Usage-Instructions)
+- [Data Analysis](#data-analysis)
+- [Group Contributions](#group-contributions)
+- [Individual Contributions](#individual-contributions)
+- [License](#license)
 
 ## Project Overview
 
@@ -72,4 +72,48 @@ To replicate this analysis, or expand it with your own further additions, follow
      
 **Note**: Ensure you have R and RStudio (or your preferred R IDE) installed on your local machine before proceeding with the analysis.
 
-   
+## Group Contributions
+Throughout this project, our group collaborated effectively and worked together to achieve our research objectives. Here are the key group contributions:
+
+- **Project Planning**: We collectively brainstormed and decided on the project's focus, research questions, and objectives.
+- **Data Collection and Exploration**: As a team, we acquired and explored the primary dataset on UN peacekeeping contributions, gender breakdowns, and additional characteristics. This involved cleaning and preparing the data for analysis.
+- **Literature Review**: We collaboratively conducted a literature review to identify relevant academic research papers and studies related to our topic. This literature review helped us establish a solid theoretical foundation for our analysis.
+- **Statistical Analysis**: We divided the statistical analysis into stages and each took responsibility for specific parts:
+   - Stage 1: Comparison of total personnel contribution with different characteristics to identify optimal clusters and draw conclusions.
+  - Stage 2: Analyzing the percentage of female contributions in relation to various socio-economic characteristics and determining the optimal number of clusters. We collectively drew meaningful conclusions from the results and identified distinct groups.
+- **Code Development**: We all contributed to coding tasks such as data cleaning, variable renaming, and ensuring data consistency. Collaboration was key to maintaining code quality and consistency throughout the project.
+- **Documentation**: Each team member played a role in documenting our work. This included writing code comments, documenting data cleaning and preprocessing steps, and keeping track of data sources.
+- **Editing and Review**: We collectively edited and reviewed the final document, ensuring that it was well-structured, cohesive, and free from errors. We used Google Docs for collaborative editing.
+
+**Individual Contributions**
+
+Here are the specific individual contributions of myself and each group member:
+
+**My Individual Contributions (Corinne Batho-Newton)**:
+- Conducted initial exploration of the gender dataset, identifying initial trends over time.
+- Programmed a for loop to calculate the average personnel per month for each country.
+- Cleaned and preprocessed the secondary characteristics dataset, addressing missing values.
+- Calculated the percentage of female personnel and conducted exploratory analysis against socio-economic characteristics.
+- Conducted stage 2 of the cluster analysis, comparing the percentage of female contributions to different subgroups of characteristics and drawing meaningful conclusions from the results.
+
+**D. Kaba**:
+- Conducted the initial background research on the chosen topic, finding academic papers and ideas for the project.
+- Investigated different personnel types within the gender dataset and outlined their contributions to different missions over a decade.
+- Ensured data consistency and cleanliness in the additional characteristics dataset.
+- Lead the literature review workload to support further analysis, identifying key previous research.
+- Conducted stage 1 of the cluster analysis, comparing total personnel contribution with different characteristics and drawing effective conclusions from the results.
+
+**Jodie Harbour (jkh23)**:
+- Renamed columns and conducted initial exploration of datasets.
+- Investigated location factors of missions and the geographical proximity of contributing countries.
+- Sourced socio-economic and socio-demographic data from the World Bank.
+- Worked on the regression modelling part of the statistical analysis, testing different models and checking deviance plots to assess model suitability.
+- Assisted with data visualization and project presentation.
+
+Overall, our individual contributions complemented each other, ensuring a comprehensive and well-rounded analysis. Collaboration was essential to the success of this project, with each member bringing unique skills to the team.
+
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
