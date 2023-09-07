@@ -1,7 +1,9 @@
 # Data Analytics Project - Understanding Gender Disparities in Peacekeeping Missions
 ### An analysis of gender disparities in international peacekeeping missions and their correlation with socio-economic factors.
 
+
 Welcome to the UN Peacekeeping Contributions Data Analysis project. An end-of-year group project and dissertation completed for the University of Kent's "Year in Data" programme. This repository includes a comprehensive analysis of datasets related to the contributions made by various countries to the United Nations (UN) peacekeeping missions. Upon initial investigation of the data available, we aimed our project at understanding why some countries contribute more personnel to different missions, exploring gender differences in contributions, and analysing various socio-economic characteristics that might influence a country's participation.
+
 
 ## Table of Contents
 - [Project Title and Description](#Data-Analytics-Project-Understanding-Gender-Disparities-in-Peacekeeping-Missions)
@@ -13,6 +15,7 @@ Welcome to the UN Peacekeeping Contributions Data Analysis project. An end-of-ye
 - [Group Contributions](#group-contributions)
 - [Individual Contributions](#individual-contributions)
 - [License](#license)
+
 
 ## Project Overview
 
@@ -27,12 +30,14 @@ Previous research indicates that some countries participate in peacekeeping oper
 
 For the full dissertation and detailed analysis, please refer to the [Year_in_Data_Analytics_Project_Dissertation.pdf](./Year_in_Data_Analytics_Project_Dissertation.pdf)
 
+
 ## Data Sources
 We used 2 primary datasets from the UN Peacekeeping open data portal, and a secondary dataset of socioeconomic characteristics of countries from the World Bank Data.
 
 - Peacekeeping Tropp and Police Contributions Data: [Link to Dataset](https://peacekeeping.un.org/en/data-troop-and-police-contributions)
 - Women & Peacekeeping Data: [Link to Dataset](https://peacekeeping.un.org/en/women-peacekeeping)
 - Socio-Economic Characteristics Data: [Link to Dataset](https://databank.worldbank.org/source/world-development-indicators)
+
 
 ## Repository Files
 The repository contains several files relevant to the data analysis and presentation of findings.
@@ -55,6 +60,7 @@ The repository contains several files relevant to the data analysis and presenta
 6. [characteristics.csv](./characteristics.csv)
    - To investigate the relationship between country characteristics and UN peacekeeping contributions, we created this dataset. It matches World Bank data with relevant countries for each year between 2010 and 2020. It contains data on the number of male and female personnel contributed per year per country, as well as the total number of personnel contributed. Additionally, it calculates the percentage of female contributions, which was useful for further analysis techniques.
 
+
 ## Usage Instructions
 To replicate this analysis, or expand it with your own further additions, follow these steps:
 1. **Clone the Repository**: 
@@ -71,6 +77,7 @@ To replicate this analysis, or expand it with your own further additions, follow
    - Execute the code scripts within the `Dataset_EDA_UN_Peacekeeping.Rmd` file in sequential order. This will perform the exploratory data analysis and generate the results.
      
 **Note**: Ensure you have R and RStudio (or your preferred R IDE) installed on your local machine before proceeding with the analysis.
+
 
 ## Group Contributions
 Throughout this project, our group collaborated effectively and worked together to achieve our research objectives. Here are the key group contributions:
