@@ -91,7 +91,7 @@ Throughout this project, our group collaborated effectively and worked together 
 
 - **Editing and Review**: We collectively edited and reviewed the final document, ensuring that it was well-structured, cohesive, and free from errors. We used Google Docs for collaborative editing.
 
-##Individual Contributions
+## Individual Contributions
 
 Here are the specific individual contributions of myself and each group member:
 
