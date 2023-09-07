@@ -1,5 +1,5 @@
 ---
-title: "MA5957 Project"
+title: "MA5957 Project - R Markdown"
 authors: Corinne Batho-Newton, Djenebou Kaba, Jodie Harbour
 output: html_document
 ---
